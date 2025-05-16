@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <map>
+#include <fstream>
 
 using namespace std;
 
@@ -20,7 +21,7 @@ unordered_map<string, HttpResponse(*)()> routes;
 
 vector<string> split_string(const string& str) {
     vector<string> words;
-    stringstream ss(str);
+    istringstream ss(str);
     string word;
     while (ss >> word) {
         words.push_back(word);
@@ -48,13 +49,26 @@ struct HttpResponse {
     string body;
 };
 
-/*                              Routes                                        */
+/*                              Handlers                                        */
 HttpResponse index() {
+    ifstream file("index.html");
+    if (!file.is_open()){
+        HttpResponse response;
+        response.response_code = "400";
+        response.status_text = "error";
+        response.headers["Content-Type"] = "text/html";
+        response.body = "Erro loading index.html";
+        return response;    
+    }
+
+    ostringstream buffer;
+    buffer << file.rdbuf();
+
     HttpResponse response;
     response.response_code = "200";
     response.status_text = "OK";
     response.headers["Content-Type"] = "text/html";
-    response.body = "<html><body><h1> Index Page </h1></body></html>";
+    response.body = buffer.str();
     return response;
 }
 
@@ -122,7 +136,21 @@ int main() {
                     string not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\n404 Not Found";
                     send(client_fd, not_found.c_str(), not_found.size(), 0);
                 }
-            } else {
+            }
+            
+            else if (line.find("POST")!= string::npos){
+                cout<<line<<endl;
+                while(getline(stream,line)){
+                    continue;
+                }
+                cout<<line.size()<<endl;
+                for (char i: line){
+                    cout<< i <<" ";
+                }
+                cout<<endl;
+            }
+
+            else {
                 cout << "Unsupported method." << endl;
             }
             close(client_fd);
