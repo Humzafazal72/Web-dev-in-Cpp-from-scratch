@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <map>
 #include <fstream>
+#include <regex>
 
 using namespace std;
 
@@ -17,7 +18,8 @@ static int PORT = 8080;
 
 /*                              Utilities                                     */
 struct HttpResponse;
-unordered_map<string, HttpResponse(*)()> routes;
+unordered_map<string, HttpResponse(*)()> get_routes;
+unordered_map<string, HttpResponse(*)(string)> post_routes;
 
 vector<string> split_string(const string& str) {
     vector<string> words;
@@ -51,8 +53,9 @@ struct HttpResponse {
 
 /*                              Handlers                                        */
 HttpResponse index() {
-    ifstream file("index.html");
-    if (!file.is_open()){
+    ifstream html("index.html");
+    ifstream file("items.txt");
+    if (!html.is_open()){
         HttpResponse response;
         response.response_code = "400";
         response.status_text = "error";
@@ -62,20 +65,35 @@ HttpResponse index() {
     }
 
     ostringstream buffer;
-    buffer << file.rdbuf();
+    buffer << html.rdbuf();
 
+    string lines="";string line;
+    while(getline(file,line)){
+        lines+="<li>"+line+"</li>\n";
+    }    
+    cout<<buffer.str()<<endl;
     HttpResponse response;
     response.response_code = "200";
     response.status_text = "OK";
     response.headers["Content-Type"] = "text/html";
-    response.body = buffer.str();
+    response.body = regex_replace(buffer.str(),regex("items"),lines);
     return response;
 }
+
+HttpResponse add_item(string item){
+    ofstream file("items.txt", ios::app);
+    file << item << "\n";
+    file.close();
+    
+    return index();
+}
+
 
 /*                              Driver Function                               */
 int main() {
     // Register routes
-    routes["GET /"] = &index;
+    get_routes["GET /"] = &index;
+    post_routes["POST /add_item"] = &add_item;
 
     // init Socket 
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -124,8 +142,8 @@ int main() {
                 vector<string> header = split_string(line);
                 string route_key = header[0] + " " + header[1];
 
-                if (routes.find(route_key) != routes.end()) {
-                    HttpResponse response = routes[route_key]();
+                if (get_routes.find(route_key) != get_routes.end()) {
+                    HttpResponse response = get_routes[route_key]();
                     string res = 
                         "HTTP/1.1 " + response.response_code + " " + response.status_text + "\r\n" +
                         "Content-Type: " + response.headers["Content-Type"] + "\r\n\n" +
@@ -139,15 +157,24 @@ int main() {
             }
             
             else if (line.find("POST")!= string::npos){
-                cout<<line<<endl;
-                while(getline(stream,line)){
+                string item_;
+                while(getline(stream,item_)){
                     continue;
                 }
-                cout<<line.size()<<endl;
-                for (char i: line){
-                    cout<< i <<" ";
+                string item = item_.substr(5,item_.size());
+                vector<string> header = split_string(line); 
+                string route_key = header[0] + " " + header[1];
+                if(post_routes.find(route_key)!=post_routes.end()){
+                    HttpResponse response = post_routes[route_key](regex_replace(item,regex("\\+")," "));
+                    string res = 
+                        "HTTP/1.1 " + response.response_code + " " + response.status_text + "\r\n" +
+                        "Content-Type: " + response.headers["Content-Type"] + "\r\n\n" +
+                        response.body;
+                    send(client_fd, res.c_str(),res.size(),0);
+                } else{
+                    string not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\n404 Not Found";
+                    send(client_fd, not_found.c_str(), not_found.size(), 0);
                 }
-                cout<<endl;
             }
 
             else {

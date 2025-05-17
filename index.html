@@ -3,18 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>TO-DO List App</title>
+    <style>
+        /* Internal CSS */
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        li {
+            background-color: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            list-style-type: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>
+    <h1 style="margin-bottom: 30px;">  <!-- Inline CSS -->
         Welcome to the TO-DO list APP
     </h1>
-
-    <form method="post" action="/add_item">
-        <label>Add an item</label>
-        <input type="text" name="item">
-        <button type="submit">Add item</button>
+    <ul style="background-color: #e8f4fc;">  <!-- Inline CSS -->
+        items
+    </ul>
+    <form method="post" action="/add_item" style="margin-top: 20px;">  <!-- Inline CSS -->
+        <label style="font-weight: bold; margin-right: 10px;">Add an item</label>  <!-- Inline CSS -->
+        <input type="text" name="item" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 60%;">
+        <button type="submit" style="padding: 8px 15px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">Add item</button>  <!-- Inline CSS -->
     </form>
-
 </body>
 </html>
