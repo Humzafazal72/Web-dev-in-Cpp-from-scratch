@@ -183,16 +183,19 @@ HttpResponse login_handler(string formData) {
     if(user_exists){
         string session_id = generate_session_id(); 
         HttpResponse response;
-        response.response_code = "200";
-        response.status_text = "ok";
+        response.response_code = "303";
+        response.status_text = "See Other";
         response.headers["Content-Type"] = "text/plain";
         response.headers["Location"] = "/";
         response.headers["Set-Cookie"] = "session_id=" + session_id + "; Path=/; HttpOnly";
         response.body = "redirecting....";
         return response;
+    } else{
+        cout<< "not found"<<endl;
+        HttpResponse res;
+        return res;
     }
-    HttpResponse res;
-    return res;
+    
 }
 
 HttpResponse signup(string arg) {
@@ -325,6 +328,7 @@ int main() {
             istringstream stream(buffer),stream2(buffer);
             string line;
             getline(stream, line);
+            cout<< line <<endl;
             
             if (line.find("/favicon.ico") == string::npos && line.find("GET") != string::npos) {
                 bool cookie = check_cookie(buffer);
@@ -346,7 +350,6 @@ int main() {
                     int pos = header[1].find("?"); 
                     route_key = header[0] + " " + header[1].substr(0,pos);
                     arg = header[1].substr(pos+6,header[1].length());
-                    cout<< route_key << " " << arg << endl;
                 }
 
                 if (routes.find(route_key) != routes.end()) {
@@ -379,6 +382,7 @@ int main() {
                         res += key + ": " + value + "\r\n";
                     }
                     res += "\r\n" + response.body;
+                    cout<< res<<endl;
                     send(client_fd, res.c_str(),res.size(),0);
                 } else{
                     string not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\n404 Not Found";
