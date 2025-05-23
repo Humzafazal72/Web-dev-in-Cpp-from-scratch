@@ -185,9 +185,10 @@ HttpResponse login_handler(string formData) {
         HttpResponse response;
         response.response_code = "200";
         response.status_text = "ok";
-        response.headers["Content-Type"] = "text/html";
+        response.headers["Content-Type"] = "text/plain";
         response.headers["Location"] = "/";
         response.headers["Set-Cookie"] = "session_id=" + session_id + "; Path=/; HttpOnly";
+        response.body = "redirecting....";
         return response;
     }
     HttpResponse res;
@@ -224,7 +225,9 @@ HttpResponse signup_handler(string formData){
     string cpassword = split_string(args[2],"=")[1];
 
     if(password==cpassword){
-        User u = {username,password};
+        User u;
+        strcpy(u.username, username.c_str());
+        strcpy(u.password, password.c_str());
         ofstream outFile("Users.dat",ios::binary);
         outFile.write(reinterpret_cast<char*>(&u), sizeof(User));
         outFile.close();
@@ -275,7 +278,7 @@ int main() {
     routes["GET /"] = &index;
     routes["GET /delete_item"] = &delete_item;
     routes["POST /add_item"] = &add_item;
-    routes["POST /login"] = &login;
+    routes["GET /login"] = &login;
     routes["POST /login_handler"] = &login_handler;
     routes["GET /signup"] = &signup;
     routes["POST /signup_handler"] = &signup_handler;
