@@ -19,6 +19,10 @@ using namespace std;
 static int PORT = 8080; 
 
 /*                              Utilities                                     */
+struct HttpResponse;
+unordered_map<string, HttpResponse(*)(string,string)> routes;
+unordered_map<string,string> sessions;
+
 class HttpRequest {
 public:
     string method;
@@ -44,8 +48,7 @@ struct User{
     char password[50];
 };
 
-unordered_map<string, HttpResponse(*)(string)> routes;
-
+// split string on spaces
 vector<string> split_string_(const string& str) {
     vector<string> words;
     istringstream ss(str);
@@ -56,6 +59,7 @@ vector<string> split_string_(const string& str) {
     return words;
 }
 
+//split string on a delimeter
 vector<string> split_string(const string& str, const string& delimiter) {
     vector<string> output;
     size_t start = 0;
@@ -66,24 +70,48 @@ vector<string> split_string(const string& str, const string& delimiter) {
         start = end + delimiter.length();
         end = str.find(delimiter, start);
     }
-    output.push_back(str.substr(start)); // Add the remaining part
+    output.push_back(str.substr(start));
 
     return output;
 }
 
-bool check_cookie(char* buffer){
+//Remove white spaces /r/n/t from string
+string trim(const string& str) {
+    size_t first = str.find_first_not_of(" \r\n\t");
+    if (first == string::npos) return "";
+    size_t last = str.find_last_not_of(" \r\n\t");
+    return str.substr(first, (last - first + 1));
+}
+
+//Check if a session_id exists. 
+bool check_session(string line){
+    vector<string> splits = split_string(line,"=");
+    if(sessions.find(trim(splits[1]))!=sessions.end()){
+        return true;
+    } else{
+        return false;
+    }
+}
+
+//check if cookie exists with correct session_id
+string get_cookie(char* buffer){
     string line;
     istringstream stream(buffer);
     while(getline(stream,line)){
         if(line.find("Cookie:")!=string::npos){
-            return true;
+            if (check_session(line)){
+                return trim(split_string(line,"=")[1]);
+            }else{
+                return "None";
+            }
         } 
     }
-    return false;
+    return "None";
 }
 
+//check if user exists in db.
 bool find_user(string username, string password){
-    ifstream inFile("Users.dat");
+    ifstream inFile("storage/Users.dat");
     User current;
     while (inFile.read(reinterpret_cast<char*>(&current),sizeof(User))){
         if(password == current.password && username == current.username){
@@ -93,6 +121,19 @@ bool find_user(string username, string password){
     return false;
 }
 
+//check if a username exists in db
+bool find_username(string username){
+    ifstream inFile("storage/Users.dat");
+    User current;
+    while (inFile.read(reinterpret_cast<char*>(&current),sizeof(User))){
+        if(username == current.username){
+            return true;
+        }
+    }
+    return false;
+}
+
+//generate a alphanum cookie session_id 
 string generate_session_id() {
     static const char charset[] =
         "0123456789"
@@ -121,14 +162,14 @@ HttpResponse redirect_to(string location) {
 }
 
 
-HttpResponse index(string arg) {
-    ifstream html("index.html");
-    ifstream file("items.txt");
+HttpResponse index(string arg, string cookie) {
+    ifstream html("templates/index.html");
+    ifstream file("storage/"+sessions[cookie]+".txt");
     if (!html.is_open()){
         HttpResponse response;
         response.response_code = "400";
         response.status_text = "error";
-        response.headers["Content-Type"] = "text/html";
+        response.headers["Content-Type"] = "text/plane";
         response.body = "Erro loading index.html";
         return response;    
     }
@@ -151,13 +192,13 @@ HttpResponse index(string arg) {
     return response;
 }
 
-HttpResponse login(string arg) {
-    ifstream html("login.html");
+HttpResponse login(string arg,string cookie) {
+    ifstream html("templates/login.html");
     if (!html.is_open()){
         HttpResponse response;
         response.response_code = "400";
         response.status_text = "error";
-        response.headers["Content-Type"] = "text/html";
+        response.headers["Content-Type"] = "text/plane";
         response.body = "Erro loading login.html";
         return response;    
     }
@@ -173,15 +214,15 @@ HttpResponse login(string arg) {
     return response;
 }
 
-HttpResponse login_handler(string formData) {
+HttpResponse login_handler(string formData,string cookie) {
     vector<string> args = split_string(formData,"&");
     string username = split_string(args[0],"=")[1];
     string password = split_string(args[1],"=")[1];
     
-
     bool user_exists = find_user(username,password);
     if(user_exists){
         string session_id = generate_session_id(); 
+        sessions[session_id] = username;
         HttpResponse response;
         response.response_code = "303";
         response.status_text = "See Other";
@@ -191,21 +232,24 @@ HttpResponse login_handler(string formData) {
         response.body = "redirecting....";
         return response;
     } else{
-        cout<< "not found"<<endl;
-        HttpResponse res;
-        return res;
+        HttpResponse response;
+        response.response_code = "400";
+        response.status_text = "error";
+        response.headers["Content-Type"] = "text/plane";
+        response.body = "Invalid credentials. Please try again.";
+        return response;  
     }
     
 }
 
-HttpResponse signup(string arg) {
-    ifstream html("signup.html");
+HttpResponse signup(string arg,string cookie) {
+    ifstream html("templates/signup.html");
     if (!html.is_open()){
         HttpResponse response;
         response.response_code = "400";
         response.status_text = "error";
-        response.headers["Content-Type"] = "text/html";
-        response.body = "Erro loading signup.html";
+        response.headers["Content-Type"] = "text/plane";
+        response.body = "Error loading signup.html";
         return response;    
     }
 
@@ -220,18 +264,27 @@ HttpResponse signup(string arg) {
     return response;
 }
 
-HttpResponse signup_handler(string formData){
+HttpResponse signup_handler(string formData,string cookie){
     vector<string> args = split_string(formData,"&");
         
     string username = split_string(args[0],"=")[1];
     string password = split_string(args[1],"=")[1];
     string cpassword = split_string(args[2],"=")[1];
 
+    if(find_username){
+        HttpResponse res;
+        res.response_code = "400";
+        res.status_text = "error";
+        res.headers["Content-Type"] = "text/plane";
+        res.body = "Useranme Already exists";
+        return res;
+    } 
+
     if(password==cpassword){
         User u;
         strcpy(u.username, username.c_str());
         strcpy(u.password, password.c_str());
-        ofstream outFile("Users.dat",ios::binary);
+        ofstream outFile("storage/Users.dat",ios::app);
         outFile.write(reinterpret_cast<char*>(&u), sizeof(User));
         outFile.close();
         return redirect_to("login");
@@ -239,26 +292,24 @@ HttpResponse signup_handler(string formData){
         HttpResponse res;
         res.response_code = "400";
         res.status_text = "error";
-        res.headers["Content-Type"] = "text/html";
+        res.headers["Content-Type"] = "text/plane";
         res.body = "The passwords didn't match";
         return res;    
     }
-    HttpResponse res;
-    return res;
 }
 
-HttpResponse add_item(string formData){
+HttpResponse add_item(string formData, string cookie){
     string item_ = formData.substr(5,formData.size());
     string item = regex_replace(item_,regex("\\+")," "); 
-    ofstream file("items.txt", ios::app);
+    ofstream file("storage/"+sessions[cookie]+".txt", ios::app);
     file << item << "\n";
     file.close();    
     return redirect_to("");
 }
 
-HttpResponse delete_item(string item){
+HttpResponse delete_item(string item, string cookie){
     item = regex_replace(item,regex("%20")," ");
-    ifstream infile("items.txt");
+    ifstream infile("storage/"+sessions[cookie]+".txt");
     string line,items="";
     while(getline(infile,line)){
         items.append(line);
@@ -269,7 +320,7 @@ HttpResponse delete_item(string item){
 
     infile.close();
 
-    ofstream outfile("items.txt",ios::out);
+    ofstream outfile("storage/"+sessions[cookie]+".txt",ios::out);
     outfile << items;
 
     return redirect_to("");
@@ -328,12 +379,10 @@ int main() {
             istringstream stream(buffer),stream2(buffer);
             string line;
             getline(stream, line);
-            cout<< line <<endl;
-            
+            string cookie = get_cookie(buffer);
             if (line.find("/favicon.ico") == string::npos && line.find("GET") != string::npos) {
-                bool cookie = check_cookie(buffer);
-                if(!cookie && line.find("signup")==string::npos){
-                    HttpResponse response = login(" ");
+                if(cookie=="None" && line.find("signup")==string::npos){
+                    HttpResponse response = login(" "," ");
                     string res = "HTTP/1.1 " + response.response_code + " " + response.status_text + "\r\n";
                     for (const auto& [key, value] : response.headers) {
                         res += key + ": " + value + "\r\n";
@@ -353,7 +402,7 @@ int main() {
                 }
 
                 if (routes.find(route_key) != routes.end()) {
-                    HttpResponse response = routes[route_key](arg);
+                    HttpResponse response = routes[route_key](arg, cookie);
                     string res = "HTTP/1.1 " + response.response_code + " " + response.status_text + "\r\n";
                     for (const auto& [key, value] : response.headers) {
                         res += key + ": " + value + "\r\n";
@@ -376,13 +425,12 @@ int main() {
                 string route_key = header[0] + " " + header[1];
                 
                 if(routes.find(route_key)!=routes.end()){
-                    HttpResponse response = routes[route_key](formData);
+                    HttpResponse response = routes[route_key](formData,cookie);
                     string res = "HTTP/1.1 " + response.response_code + " " + response.status_text + "\r\n";
                     for (const auto& [key, value] : response.headers) {
                         res += key + ": " + value + "\r\n";
                     }
                     res += "\r\n" + response.body;
-                    cout<< res<<endl;
                     send(client_fd, res.c_str(),res.size(),0);
                 } else{
                     string not_found = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\n404 Not Found";
