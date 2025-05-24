@@ -5,3 +5,5 @@ In order to run this project on Linux:
   `g++ webserver.cpp -o webserver_exe`
 - Run the executable:
   `./webserver_exe`
+- create a directory and name it "storage".
+  `mkdir storage`
